@@ -1,7 +1,9 @@
 # IN THIS FILE WE WANT TO TEST OUR PREVIOUS MODEL (TRAINED ON NT SAMPLES) FOR ASB AND UT SAMPLES AND SEE HOW WELL IT GENERALIZES
+# UPDATE: NOT ON ASB, AS THIS DATASET IS APPARENTLY CORRUPTED
 
 # FOR THIS, WE WILL AT FIRST LOAD OUR PREVIOUS FINAL MODEL JUST AS IN TASK 2
 
+#old!
 # addendum: as we want the full 3x3 cross generalization matrix, first we have to train all 3 models
 # I will use the same workflow and pipeline as before, using optuna to find the best hyperparams and then training a final model on that
 # afterwards, this file here will serve the purpose of loading these 3 models and testing them on all 3 test datasets
@@ -39,7 +41,9 @@ def load_trained_model(checkpoint_path, device):
 
 def load_dataset(category: str, split: str) -> TensorDataset:
     """Load a dataset split as a PyTorch TensorDataset."""
-    data = np.load(project_path(f"data/processed/{category}/{split}.npz"))
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]      #had to fix this for laptop
+    target_path = PROJECT_ROOT / "data" / "processed" / category / f"{split}.npz"
+    data = np.load(target_path)
     images = torch.from_numpy(data["images"])
     labels = torch.from_numpy(data["labels"])
     return TensorDataset(images, labels)
@@ -58,6 +62,8 @@ def create_generalization_matrix(results):          # THIS FUNCTION USES THE RES
     ax.set_yticks(np.arange(len(model_names)))
     ax.set_xticklabels(dataset_names)
     ax.set_yticklabels(model_names)
+    ax.set_xlabel("Test dataset")
+    ax.set_ylabel("Training dataset")
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
     for i in range(len(model_names)):
         for j in range(len(dataset_names)):
@@ -67,6 +73,58 @@ def create_generalization_matrix(results):          # THIS FUNCTION USES THE RES
     plt.colorbar(im)
     plt.savefig("results/cross_generalization_matrix.png")    
     plt.show()
+
+def show_sample_images_comparison(
+    num_samples=5,
+    category1="NT",
+    category2="UT",
+    seed=42,
+):
+    """Plot randomly selected test images from two dataset categories."""
+    dataset1 = load_dataset(category1, "test")
+    dataset2 = load_dataset(category2, "test")
+
+    if num_samples < 1:
+        raise ValueError("num_samples must be at least 1")
+    if num_samples > min(len(dataset1), len(dataset2)):
+        raise ValueError(
+            "num_samples cannot exceed the size of the smaller dataset "
+            f"({min(len(dataset1), len(dataset2))})"
+        )
+
+    rng = np.random.default_rng(seed)
+    indices1 = rng.choice(len(dataset1), num_samples, replace=False)
+    indices2 = rng.choice(len(dataset2), num_samples, replace=False)
+
+    # squeeze=False keeps axes two-dimensional even when num_samples == 1.
+    fig, axes = plt.subplots(
+        num_samples,
+        2,
+        figsize=(8, 4 * num_samples),
+        squeeze=False,
+    )
+    for i in range(num_samples):
+        img1, label1 = dataset1[indices1[i]]
+        img2, label2 = dataset2[indices2[i]]
+
+        axes[i, 0].imshow(img1.squeeze().cpu().numpy(), cmap="gray")
+        axes[i, 0].set_title(f"{category1} Sample {i+1} - Label: {label1.item()}")
+        axes[i, 0].axis("off")
+
+        axes[i, 1].imshow(img2.squeeze().cpu().numpy(), cmap="gray")
+        axes[i, 1].set_title(f"{category2} Sample {i+1} - Label: {label2.item()}")
+        axes[i, 1].axis("off")
+
+    fig.suptitle(f"Test Samples: {category1} vs. {category2}")
+    fig.tight_layout()
+
+    results_dir = Path(__file__).resolve().parent / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = results_dir / f"sample_images_comparison_{category1}_{category2}.png"
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.show()
+
+    return output_path
 
 
 if __name__ == "__main__":
@@ -85,7 +143,7 @@ if __name__ == "__main__":
 
     models = {
         "NT": model_NT,
-        "ASB": model_ASB,
+        #"ASB": model_ASB,
         "UT": model_UT}
     
     if torch.cuda.is_available():
@@ -104,7 +162,7 @@ if __name__ == "__main__":
 
     test_loaders = {
     "NT": DataLoader(test_dataset_NT, batch_size=batch_size, shuffle=False),
-    "ASB": DataLoader(test_dataset_ASB, batch_size=batch_size, shuffle=False),
+   # "ASB": DataLoader(test_dataset_ASB, batch_size=batch_size, shuffle=False),
     "UT": DataLoader(test_dataset_UT, batch_size=batch_size, shuffle=False),
     }
 
@@ -156,4 +214,5 @@ if __name__ == "__main__":
 
         
     #HERE PLOT THE MATRIX
-    create_generalization_matrix(results)    
+    create_generalization_matrix(results)
+   # show_sample_images_comparison()

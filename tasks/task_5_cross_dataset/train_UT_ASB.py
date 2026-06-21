@@ -26,7 +26,9 @@ from model_task1 import ImageClassificationDataset
 
 def load_dataset(category: str, split: str) -> TensorDataset:
     """Load a dataset split as a PyTorch TensorDataset."""
-    data = np.load(f"C:/Code/Opt-ML/Project2/data/processed/{category}/{split}.npz")
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]      #had to fix this for laptop
+    target_path = PROJECT_ROOT / "data" / "processed" / category / f"{split}.npz"        
+    data = np.load(target_path)
     images = torch.from_numpy(data["images"])
     labels = torch.from_numpy(data["labels"])
     return TensorDataset(images, labels)
@@ -53,7 +55,8 @@ def train_model(category, batch_size, data_augmentation, num_epochs, learning_ra
     ])
 
     print('LOADING DATA')
-    data_path = Path(f"C:/Code/Opt-ML/Project2/data/processed/{category}/train.npz")          # CHOOSING {category} SAMPLES FOR CNN 
+    data_path = Path(__file__).resolve().parents[2]  / "data" / "processed" / category / "train.npz"         # CHOOSING {category} SAMPLES FOR CNN
+    #data_path = Path(f"C:/Code/Opt-ML/Project2/data/processed/{category}/train.npz")          # CHOOSING {category} SAMPLES FOR CNN 
     data = np.load(data_path)
 
     # Access images and labels
@@ -71,7 +74,9 @@ def train_model(category, batch_size, data_augmentation, num_epochs, learning_ra
     print("=" * 60)
         
     for split in splits:
-        data = np.load(f"C:/Code/Opt-ML/Project2/data/processed/{category}/{split}.npz")             #HERE ALSO PATH SPECIFIED FOR {category}
+        PROJECT_ROOT = Path(__file__).resolve().parents[2]      #had to fix this for laptop
+        target_path = PROJECT_ROOT / "data" / "processed" / category / f"{split}.npz"        
+        data = np.load(target_path)             #HERE ALSO PATH SPECIFIED FOR {category}
         imgs, lbls = data["images"], data["labels"]
         class_dist = dict(zip(*np.unique(lbls, return_counts=True)))
         print(f"  {split:5s}: {len(lbls):4d} samples | Class 0: {class_dist.get(0, 0):4d}, Class 1: {class_dist.get(1, 0):4d}")
