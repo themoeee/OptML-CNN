@@ -22,7 +22,9 @@ def add_gaussian_noise ( images , sigma ) :
 
 def load_dataset_with_noise(category: str, split: str, sigma: float) -> TensorDataset:
     """Load a dataset split as a PyTorch TensorDataset."""
-    data = np.load(f"C:/Code/Opt-ML/Project2/data/processed/{category}/{split}.npz")
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]      #had to fix this for laptop
+    target_path = PROJECT_ROOT / "data" / "processed" / category / f"{split}.npz"        
+    data = np.load(target_path)
     images = torch.from_numpy(data["images"])
     labels = torch.from_numpy(data["labels"]) 
 
@@ -57,7 +59,8 @@ if __name__ == "__main__":
     momentum = 0.0
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = load_trained_model("C:/Code/Opt-ML/Project2/tasks/task_1_hyperparameter/results/final_best_model_task1.pth", device=device)
+    path_to_model = Path(__file__).resolve().parents[1] / "task_1_hyperparameter" / "results" / "final_best_model_task1.pth"
+    model = load_trained_model(path_to_model, device=device)
 
     
     if torch.cuda.is_available():
