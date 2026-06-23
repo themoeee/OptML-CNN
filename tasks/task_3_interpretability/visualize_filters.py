@@ -60,12 +60,13 @@ def load_model(checkpoint_path, device):
     return model
 
 def get_conv_layers(model):
-    #Every named module is a conv layer in our model
+    # returns name and module of all convolutional layers in the model
     conv_layers = []
     for name, module in model.named_modules():
         if isinstance(module, nn.Conv2d): #only return Conv2d layers
             conv_layers.append((name, module))
     return conv_layers
+
 def plot_filter(model, filter_idx=0, conv_layer_idx=0):
     conv_layers = get_conv_layers(model)
 
@@ -95,7 +96,7 @@ def plot_filter(model, filter_idx=0, conv_layer_idx=0):
     plt.axis("off")
     plt.show()
 
-def plot_all_filters(model):
+def plot_all_filters_layer1(model):
     conv1 = model.features[0]
     weights = conv1.weight.detach().cpu()   # shape: (32, 1, 5, 5)
 
@@ -122,32 +123,6 @@ def plot_all_filters(model):
     plt.savefig(ROOT / "tasks" / "task_3_interpretability" / "results" / "all_filters_conv1.png", dpi=300, bbox_inches="tight")
     plt.show()
 
-def activation_maps(model, image):
-    # Get activations from the first convolutional layer for a given input image and plot them
-    conv1 = model.features[0]
-    with torch.no_grad():
-        activations = conv1(image.unsqueeze(0).to(next(model.parameters()).device))
-
-    #Plot activations of the first conv layer for all 32 filters
-    n_filters = activations.shape[1]
-    cols = 8
-    rows = math.ceil(n_filters / cols)
-    fig, axes = plt.subplots(rows, cols, figsize=(16, 8))
-    axes = axes.flatten()
-    for i in range(n_filters):
-        act = activations[0, i].cpu()
-        vmax = act.abs().max()
-
-        axes[i].imshow(act, cmap="viridis", vmin=0, vmax=vmax)
-        axes[i].set_title(f"Filter {i}", fontsize=8)
-        axes[i].axis("off")
-    for j in range(n_filters, len(axes)):
-        axes[j].axis("off")
-    plt.suptitle("Activation maps of first conv layer", fontsize=14)
-    plt.tight_layout()
-    plt.show()
-
-    return activations.squeeze(0).cpu()
 
 def get_activation_maps(model, image, conv_layer_idx):
     """
@@ -176,7 +151,7 @@ def get_activation_maps(model, image, conv_layer_idx):
 
     return x.detach().cpu()
 
-def plot_all_activation_maps_with_input(model, image, label=None, conv_layer_idx=0, save_path=None, show=True, scale="per_map"):
+def plot_all_activation_maps(model, image, label=None, conv_layer_idx=0, show=True, scale="per_map"):
     """
     scale:
         "global"  -> same activation scale for all channels
@@ -213,19 +188,24 @@ def plot_all_activation_maps_with_input(model, image, label=None, conv_layer_idx
     n_channels, h, w = fmap.shape
     rows = math.ceil(n_channels / cols)
 
-    fig = plt.figure(figsize=(2.0 * (cols + 1), 2.0 * rows))
+    fig = plt.figure(
+        figsize=(1.65 * (cols + 1), 1.65 * rows + 0.6),
+        layout="constrained"
+    )
     gs = fig.add_gridspec(
         rows,
         cols + 1,
-        width_ratios=[1.35] + [1] * cols
+        width_ratios=[1.25] + [1] * cols
     )
 
-    # input image upper left
-    ax_input = fig.add_subplot(gs[0, 0])
+    # Keep the input and its colorbar in a dedicated, consistently aligned column.
+    input_rows = min(2, rows)
+    ax_input = fig.add_subplot(gs[:input_rows, 0])
     ax_input.imshow(image[0].cpu(), cmap="gray")
     ax_input.set_title(
-        f"Input\nlabel={label}, pred={pred}, p={prob:.2f}",
-        fontsize=8
+        f"Input\nLabel: {label}  |  Prediction: {pred}\nConfidence: {prob:.2f}",
+        fontsize=9,
+        pad=7
     )
     ax_input.axis("off")
 
@@ -253,20 +233,82 @@ def plot_all_activation_maps_with_input(model, image, label=None, conv_layer_idx
             act = act / (act.max() + 1e-8)
 
         im = ax.imshow(act, cmap="viridis", vmin=vmin, vmax=vmax)
-        ax.set_title(f"Ch {ch}", fontsize=7)
+        ax.set_title(f"Channel {ch}", fontsize=7, pad=3)
         ax.axis("off")
 
-    # Colorbar links unter dem Input
-    if rows > 1 and im is not None:
-        cax = fig.add_subplot(gs[1:, 0])
-        cbar = fig.colorbar(im, cax=cax)
+    if im is not None:
+        cbar_row = input_rows if input_rows < rows else rows - 1
+        cax = fig.add_subplot(gs[cbar_row, 0])
+        cbar = fig.colorbar(im, cax=cax, orientation="horizontal")
         cbar.set_label("Activation", fontsize=8)
         cax.tick_params(labelsize=7)
 
     fig.suptitle(
         f"{layer_names[conv_layer_idx]} activation maps "
         f"({n_channels} channels, {h}x{w})",
-        fontsize=14
+        fontsize=14,
+        fontweight="semibold"
+    )
+
+    fig.savefig(
+        ROOT / "tasks" / "task_3_interpretability" / "results" / f"activation_maps_{layer_names[conv_layer_idx]}.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+
+    if show:
+        plt.show()
+    plt.close(fig)
+
+
+def plot_filter_packet(model, conv_layer_idx=1, output_filter_idx=0, cols=8, save_path=None):
+    """
+    conv_layer_idx:
+        0 -> Conv1
+        1 -> Conv2
+        2 -> Conv3
+    output_filter_idx:
+        which output filter package to visualize
+    """
+    conv_layers = get_conv_layers(model)
+    layer_name, conv_layer = conv_layers[conv_layer_idx]
+
+    weights = conv_layer.weight.detach().cpu()
+    # shape: (out_channels, in_channels, k_h, k_w)
+
+    out_channels, in_channels, k_h, k_w = weights.shape
+
+    if output_filter_idx >= out_channels:
+        raise ValueError(f"output_filter_idx must be 0 to {out_channels - 1}")
+
+    packet = weights[output_filter_idx]       # (in_channels, k_h, k_w)
+    mean_filter = packet.mean(dim=0)          # (k_h, k_w)
+
+    filters = torch.cat([mean_filter.unsqueeze(0), packet], dim=0)
+    titles = ["Mean"] + [f"In {i}" for i in range(in_channels)]
+
+    n_plots = filters.shape[0]
+    rows = math.ceil(n_plots / cols)
+
+    fig, axes = plt.subplots(rows, cols, figsize=(2 * cols, 2 * rows))
+    axes = np.atleast_1d(axes).flatten()
+
+    vmax = filters.abs().max().item()
+    if vmax == 0:
+        vmax = 1.0
+
+    for i in range(n_plots):
+        axes[i].imshow(filters[i], cmap="seismic", vmin=-vmax, vmax=vmax)
+        axes[i].set_title(titles[i], fontsize=8)
+        axes[i].axis("off")
+
+    for j in range(n_plots, len(axes)):
+        axes[j].axis("off")
+
+    fig.suptitle(
+        f"{layer_name} | Output filter {output_filter_idx} | "
+        f"{in_channels} input-channel kernels",
+        fontsize=12
     )
 
     plt.tight_layout()
@@ -274,40 +316,44 @@ def plot_all_activation_maps_with_input(model, image, label=None, conv_layer_idx
     if save_path is not None:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
-    if show:
-        plt.show()
-    else:
-        plt.close()
+    plt.show()
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
+    results_dir = ROOT / "tasks" / "task_3_interpretability" / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+
     checkpoint_path = ROOT / "tasks" / "task_1_hyperparameter" / "results" / "final_best_model_task1.pth"
-    model = load_model(checkpoint_path, device)
+    model = load_model(checkpoint_path, device) # Load the model from task 1 hyperparam optim using optuna
 
     conv_layers = get_conv_layers(model)
+
     for name, layer in conv_layers:
         print(f"Layer: {name}, Kernel Size: {layer.kernel_size}, Out Channels: {layer.out_channels}")
 
     #plot_filter(model, filter_idx=0)
-    plot_all_filters(model)
+
+    plot_all_filters_layer1(model)
     
     # Load a sample image from the training set
-    train_dataset = load_dataset(category="NT", split="train")
-    sample_images, sample_labels = get_sample_images(train_dataset, num_samples=5)
+    test_dataset = load_dataset(category="NT", split="test") #debate test vs train: test is new data and can therefore show what the model learned
+    sample_images, sample_labels = get_sample_images(test_dataset, num_samples=5)
     
-
-    for i in range(5):
+    for i in range(len(sample_images)):
         print(f"Sample {i} - Label: {sample_labels[i].item()}")
-        plt.imshow(sample_images[i][0], cmap="gray")
-        plt.title(f"Sample {i} - Label: {sample_labels[i].item()}")
-        plt.axis("off")
-        plt.show()
+        fig, ax = plt.subplots(figsize=(5, 5), layout="constrained")
+        ax.imshow(sample_images[i][0], cmap="gray")
+        ax.set_title(f"Sample {i} - Label: {sample_labels[i].item()}")
+        ax.axis("off")
+        fig.savefig(results_dir / f"sample_{i}_input.png", dpi=300, bbox_inches="tight")
+        #plt.show()
+        plt.close(fig)
 
-       # activations = activation_maps(model, sample_images[i])
+      #  for conv_layer_idx in range(len(conv_layers)):
+          #  plot_all_activation_maps(model, sample_images[i], sample_labels[i].item(),conv_layer_idx=conv_layer_idx,)
 
-
-        #plot_all_activation_maps_with_input(model, sample_images[i], sample_labels[i].item(), conv_layer_idx=0)
-        #plot_all_activation_maps_with_input(model, sample_images[i], sample_labels[i].item(), conv_layer_idx=1)
-        plot_all_activation_maps_with_input(model, sample_images[i], sample_labels[i].item(), conv_layer_idx=2)
+    plot_filter_packet(model, conv_layer_idx=1, output_filter_idx=0, cols=8, save_path=results_dir / "filter_packet_conv2_out0.png")
+    plot_filter_packet(model, conv_layer_idx=2, output_filter_idx=0, cols=16, save_path=results_dir / "filter_packet_conv3_out0.png")
+    plot_filter_packet(model, conv_layer_idx=0, output_filter_idx=0, cols=8, save_path=results_dir / "filter_packet_conv3_out1.png")

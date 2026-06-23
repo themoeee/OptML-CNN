@@ -5,8 +5,8 @@ Understand what the CNN learns through visualization techniques.
 
 ## Techniques Implemented
 *Select at least 2:*
-- [ ] Filter Visualization
-- [ ] Activation Maps
+- [x] Filter Visualization
+- [x] Activation Maps
 - [ ] Grad-CAM
 - [ ] t-SNE/UMAP Embeddings
 
