@@ -6,7 +6,9 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset, DataLoader
-
+from pytorch_grad_cam import GradCAM
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+from pytorch_grad_cam.utils.image import show_cam_on_image
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -96,9 +98,13 @@ def plot_filter(model, filter_idx=0, conv_layer_idx=0):
     plt.axis("off")
     plt.show()
 
-def plot_all_filters_layer1(model):
+def plot_all_filters_layer1(model, scale="global", show=True):
+    """Plot all first-layer filters with a global or per-filter color scale."""
     conv1 = model.features[0]
     weights = conv1.weight.detach().cpu()   # shape: (32, 1, 5, 5)
+
+    if scale not in {"global", "per_filter"}:
+        raise ValueError("scale must be 'global' or 'per_filter'")
 
     n_filters = weights.shape[0]
     cols = 8
@@ -107,9 +113,15 @@ def plot_all_filters_layer1(model):
     fig, axes = plt.subplots(rows, cols, figsize=(16, 8))
     axes = axes.flatten()
 
+    global_vmax = weights.abs().max().item()
+    if global_vmax == 0:
+        global_vmax = 1.0
+
     for i in range(n_filters):
         filt = weights[i, 0]
-        vmax = filt.abs().max()
+        vmax = global_vmax if scale == "global" else filt.abs().max().item()
+        if vmax == 0:
+            vmax = 1.0
 
         axes[i].imshow(filt, cmap="seismic", vmin=-vmax, vmax=vmax)
         axes[i].set_title(f"F{i}", fontsize=8)
@@ -118,11 +130,22 @@ def plot_all_filters_layer1(model):
     for j in range(n_filters, len(axes)):
         axes[j].axis("off")
 
-    plt.suptitle("All filters of first convolutional layer", fontsize=14)
+    scale_label = "global scale" if scale == "global" else "local scale per filter"
+    filename_scale = "global" if scale == "global" else "local"
+    plt.suptitle(
+        f"All filters of first convolutional layer ({scale_label})",
+        fontsize=14
+    )
     plt.tight_layout()
-    plt.savefig(ROOT / "tasks" / "task_3_interpretability" / "results" / "all_filters_conv1.png", dpi=300, bbox_inches="tight")
-    plt.show()
-
+    fig.savefig(
+        ROOT / "tasks" / "task_3_interpretability" / "results"
+        / f"all_filters_conv1_{filename_scale}_scale.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+    if show:
+        plt.show()
+    plt.close(fig)
 
 def get_activation_maps(model, image, conv_layer_idx):
     """
@@ -158,9 +181,9 @@ def plot_all_activation_maps(model, image, label=None, conv_layer_idx=0, show=Tr
         "per_map" -> each activation map normalized individually
     """
     layer_names = {
-        0: "Conv1",
-        1: "Conv2",
-        2: "Conv3"
+        0: "Convolution Layer 1",
+        1: "Convolution Layer 2",
+        2: "Convolution Layer 3"
     }
 
     if conv_layer_idx in [0, 1]:
@@ -243,6 +266,7 @@ def plot_all_activation_maps(model, image, label=None, conv_layer_idx=0, show=Tr
         cbar.set_label("Activation", fontsize=8)
         cax.tick_params(labelsize=7)
 
+
     fig.suptitle(
         f"{layer_names[conv_layer_idx]} activation maps "
         f"({n_channels} channels, {h}x{w})",
@@ -259,7 +283,6 @@ def plot_all_activation_maps(model, image, label=None, conv_layer_idx=0, show=Tr
     if show:
         plt.show()
     plt.close(fig)
-
 
 def plot_filter_packet(model, conv_layer_idx=1, output_filter_idx=0, cols=8, save_path=None):
     """
@@ -318,7 +341,78 @@ def plot_filter_packet(model, conv_layer_idx=1, output_filter_idx=0, cols=8, sav
 
     plt.show()
 
+def plot_grad_cam(model, image, label=None, target_class=None, save_path=None, show=True):
+    """
+    Grad-CAM for one grayscale image.
+    image shape: (1, 128, 128) or (128, 128)
+    """
+
+    device = next(model.parameters()).device
+
+    if image.ndim == 2:
+        image = image.unsqueeze(0)
+
+    input_tensor = image.unsqueeze(0).float().to(device)  # (1, 1, 128, 128)
+
+    model.eval()
+    output = model(input_tensor)
+    pred = output.argmax(dim=1).item()
+    prob = torch.softmax(output, dim=1)[0, pred].item()
+
+    if target_class is None:
+        target_class = pred
+
+    target_layers = [model.features[6]]  # last Conv2d layer
+    targets = [ClassifierOutputTarget(target_class)]
+
+    with GradCAM(model=model, target_layers=target_layers) as cam:
+        grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
+        grayscale_cam = grayscale_cam[0]  # (128, 128), already upsampled
+
+    # show_cam_on_image expects RGB image in float [0,1]
+    img = image[0].detach().cpu().numpy()
+    img = img - img.min()
+    img = img / (img.max() + 1e-8)
+
+    rgb_img = np.stack([img, img, img], axis=-1).astype(np.float32)
+
+    visualization = show_cam_on_image(
+        rgb_img,
+        grayscale_cam,
+        use_rgb=True
+    )
+
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4), layout="constrained")
+
+    axes[0].imshow(img, cmap="gray")
+    axes[0].set_title(f"Input\nlabel={label}")
+    axes[0].axis("off")
+
+    axes[1].imshow(grayscale_cam, cmap="jet")
+    axes[1].set_title(f"Grad-CAM heatmap\nclass={target_class}")
+    axes[1].axis("off")
+
+    axes[2].imshow(visualization)
+    axes[2].set_title(f"Overlay\npred={pred}, p={prob:.2f}")
+    axes[2].axis("off")
+
+    if save_path is not None:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    if show:
+        plt.show()
+
+    plt.close(fig)
+
+    return grayscale_cam, pred, prob
+
 if __name__ == "__main__":
+    # Display options. Figures are always saved; False only suppresses plt.show().
+    SHOW_FILTERS = True
+    SHOW_INPUT_IMAGES = True
+    SHOW_ACTIVATION_MAPS = True
+    SHOW_GRAD_CAM = True
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
@@ -335,11 +429,15 @@ if __name__ == "__main__":
 
     #plot_filter(model, filter_idx=0)
 
-    plot_all_filters_layer1(model)
+    print("Plotting all 32 filters of the first convolutional layer with global scale")
+    plot_all_filters_layer1(model, scale="global", show=SHOW_FILTERS)
+    print("Plotting all 32 filters of the first convolutional layer with local scale")
+    plot_all_filters_layer1(model, scale="per_filter", show=SHOW_FILTERS)
     
     # Load a sample image from the training set
+    print("Loading sample images from the test dataset")
     test_dataset = load_dataset(category="NT", split="test") #debate test vs train: test is new data and can therefore show what the model learned
-    sample_images, sample_labels = get_sample_images(test_dataset, num_samples=5)
+    sample_images, sample_labels = get_sample_images(test_dataset, num_samples=1, seed=43) #get 1 sample image from the test dataset
     
     for i in range(len(sample_images)):
         print(f"Sample {i} - Label: {sample_labels[i].item()}")
@@ -348,12 +446,20 @@ if __name__ == "__main__":
         ax.set_title(f"Sample {i} - Label: {sample_labels[i].item()}")
         ax.axis("off")
         fig.savefig(results_dir / f"sample_{i}_input.png", dpi=300, bbox_inches="tight")
-        #plt.show()
+        if SHOW_INPUT_IMAGES:
+            plt.show()
         plt.close(fig)
 
-      #  for conv_layer_idx in range(len(conv_layers)):
-          #  plot_all_activation_maps(model, sample_images[i], sample_labels[i].item(),conv_layer_idx=conv_layer_idx,)
+        for conv_layer_idx in range(len(conv_layers)):
+            print(f"Plotting activation maps for sample {i} for CNN layer {conv_layer_idx}")
+            plot_all_activation_maps(model, sample_images[i], sample_labels[i].item(), conv_layer_idx=conv_layer_idx, show=SHOW_ACTIVATION_MAPS)
 
-    plot_filter_packet(model, conv_layer_idx=1, output_filter_idx=0, cols=8, save_path=results_dir / "filter_packet_conv2_out0.png")
-    plot_filter_packet(model, conv_layer_idx=2, output_filter_idx=0, cols=16, save_path=results_dir / "filter_packet_conv3_out0.png")
-    plot_filter_packet(model, conv_layer_idx=0, output_filter_idx=0, cols=8, save_path=results_dir / "filter_packet_conv3_out1.png")
+    for i in range(len(sample_images)):
+        save_path = results_dir / f"grad_cam_sample_{i}.png"
+
+        plot_grad_cam(model=model, image=sample_images[i], label=sample_labels[i].item(), target_class=None, save_path=save_path, show=SHOW_GRAD_CAM)
+
+
+    # plot_filter_packet(model, conv_layer_idx=1, output_filter_idx=0, cols=8, save_path=results_dir / "filter_packet_conv2_out0.png")
+    # plot_filter_packet(model, conv_layer_idx=2, output_filter_idx=0, cols=16, save_path=results_dir / "filter_packet_conv3_out0.png")
+    # plot_filter_packet(model, conv_layer_idx=0, output_filter_idx=0, cols=8, save_path=results_dir / "filter_packet_conv3_out1.png")
