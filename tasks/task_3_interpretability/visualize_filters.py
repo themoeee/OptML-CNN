@@ -408,10 +408,12 @@ def plot_grad_cam(model, image, label=None, target_class=None, save_path=None, s
 
 if __name__ == "__main__":
     # Display options. Figures are always saved; False only suppresses plt.show().
-    SHOW_FILTERS = True
-    SHOW_INPUT_IMAGES = True
+    SHOW_FILTERS = False
+    SHOW_INPUT_IMAGES = False
     SHOW_ACTIVATION_MAPS = True
     SHOW_GRAD_CAM = True
+
+    SEED = 43
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
@@ -437,7 +439,7 @@ if __name__ == "__main__":
     # Load a sample image from the training set
     print("Loading sample images from the test dataset")
     test_dataset = load_dataset(category="NT", split="test") #debate test vs train: test is new data and can therefore show what the model learned
-    sample_images, sample_labels = get_sample_images(test_dataset, num_samples=1, seed=43) #get 1 sample image from the test dataset
+    sample_images, sample_labels = get_sample_images(test_dataset, num_samples=1, seed=SEED) #get 1 sample image from the test dataset
     
     for i in range(len(sample_images)):
         print(f"Sample {i} - Label: {sample_labels[i].item()}")
@@ -453,12 +455,6 @@ if __name__ == "__main__":
         for conv_layer_idx in range(len(conv_layers)):
             print(f"Plotting activation maps for sample {i} for CNN layer {conv_layer_idx}")
             plot_all_activation_maps(model, sample_images[i], sample_labels[i].item(), conv_layer_idx=conv_layer_idx, show=SHOW_ACTIVATION_MAPS)
-
-    for i in range(len(sample_images)):
-        save_path = results_dir / f"grad_cam_sample_{i}.png"
-
-        plot_grad_cam(model=model, image=sample_images[i], label=sample_labels[i].item(), target_class=None, save_path=save_path, show=SHOW_GRAD_CAM)
-
 
     # plot_filter_packet(model, conv_layer_idx=1, output_filter_idx=0, cols=8, save_path=results_dir / "filter_packet_conv2_out0.png")
     # plot_filter_packet(model, conv_layer_idx=2, output_filter_idx=0, cols=16, save_path=results_dir / "filter_packet_conv3_out0.png")

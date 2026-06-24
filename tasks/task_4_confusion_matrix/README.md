@@ -17,6 +17,11 @@ Perform detailed error analysis to understand model failures.
 ## Error Analysis
 *What do misclassified images have in common?*
 
+# von mir aus Angabe kopiert
+Which class is harder to classify? Why?
+• What do misclassified images have in common?
+• How could you improve performance on the failure cases?
+
 ## Suggestions for Improvement
 *How could you reduce errors?*
 
