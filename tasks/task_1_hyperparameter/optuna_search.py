@@ -40,7 +40,7 @@ def objective(trial):
     optimizer_name = trial.suggest_categorical('optimizer', ['Adam', 'SGD'])                # suggest optimizer of either Adam or SGD
     momentum = trial.suggest_float("momentum", 0.0, 0.95) if optimizer_name == "SGD" else 0.0   # only suggest momentum if optimizer is SGD, otherwise set it to 0.0
     #num_epochs = trial.suggest_int('num_epochs', 50, 200)                                   # suggest number of epochs between 5 and 20
-    num_epochs = 50                                                                          # for debugging just fixen number of epochs
+    num_epochs = 50                                                                          # for debugging just fixed number of epochs
     data_augmentation = trial.suggest_categorical('data_augmentation', [True, False])        # suggest whether to use data augmentation or not
 
     best_val_loss_epoch, __model = train_model(batch_size, data_augmentation, num_epochs, learning_rate, kernel_size, optimizer_name, momentum)
@@ -55,7 +55,7 @@ study = optuna.create_study(
     storage="sqlite:///results/optuna_study.db",
     load_if_exists=True
 )
-study.optimize(objective, n_trials=50)
+study.optimize(objective, n_trials=50) # do 50 runs in total, each with different hyperparameters suggested by optuna
 
 print("="*60)
 print("OPTUNA FINISHED OPTIMIZATION")

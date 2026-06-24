@@ -5,7 +5,7 @@ Systematically explore how hyperparameters affect model performance.
 
 ## Approach
 *Describe whether you used Grid Search, Random Search, or Optuna*
-I used Optuna for hyperparameter optimization, as the software seemed really capable and I liked the built-in validation capabilities using their Browser interface.
+I used Optuna for hyperparameter optimization, as the software seemed really capable and I liked the built-in validation capabilities using their Browser interface. For each trial, Optuna sampled a new hyperparameter configuration from a predefined search space, trained the CNN with this configuration, and evaluated it on the validation set using validation loss as the objective. Based on the results of previous trials, Optuna then guided the search toward more promising regions of the hyperparameter space. 
 
 ## Hyperparameters Explored
 - Learning rate: [1e-5, 1e-2]
