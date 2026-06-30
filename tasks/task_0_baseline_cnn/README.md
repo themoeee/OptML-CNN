@@ -10,13 +10,13 @@ Used the CNN architecture from "nb_beginner_guide.ipynb" and implemented additio
 The script ran locally on my GTX 1060 6GB
 
 With data augmentation:
-- Test Accuracy: 96.81%
-- Training Time: 5 min 23.95 sec
+- Test Accuracy: 96.45%
+- Training Time: 6 min 23.8 sec
 
 
 Without data augmentation:
-- Test Accuracy: 96.81%
-- Training Time: 1 min 9.02 sec
+- Test Accuracy: 96.45%
+- Training Time: 1 min 58.7 sec
 
 
 ## Files
