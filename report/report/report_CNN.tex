@@ -25,21 +25,21 @@
 \maketitle
 
 \begin{abstract}
-This project studies binary fracture classification in $128\times128$ grayscale microscopy images. A compact convolutional neural network (CNN) was trained on the NT dataset and subsequently examined through automated hyperparameter optimization, Gaussian-noise corruption, feature visualization, Grad-CAM, and cross-dataset evaluation. The documented baseline achieved $97.16\%$ test accuracy. Optuna selected a larger $5\times5$ kernel and identified learning rate as the most influential searched parameter. Although the tuned model retained $96.45\%$ accuracy on clean NT test data, its performance approached chance beyond a Gaussian-noise standard deviation of approximately $0.15$. Filter and activation visualizations indicate a progression from local contrast responses to spatially coarser defect-sensitive features, while Grad-CAM localizes the evidence used for an example fracture prediction. Finally, models trained on NT and UT transferred well in both directions. The completed tasks presented here are Tasks 0, 1, 2, 3, and 5.
+This project studies binary fracture classification in $128\times128$ pixels grayscale microscopy images. A compact convolutional neural network (CNN) was trained on the dataset containing images from uni-axial and notched tension tests and subsequently examined through automated hyperparameter optimization, Gaussian-noise corruption, feature visualization, Grad-CAM, and cross-dataset evaluation. The documented baseline achieved $97.16\%$ test accuracy. Afterwards, an Optuna hyperparameter study identified the learning rate as the most influential hyperparameter. Although the tuned model retained $96.45\%$ accuracy on clean NT test data, its performance approached chance beyond a Gaussian-noise standard deviation of approximately $0.15$. Filter and activation visualizations were performed showing how different layers act on the model, while Grad-CAM localizes the evidence used for an example fracture prediction. Finally, models trained on NT and UT transferred well in both directions in an cross-dataset validation. The completed tasks presented here are Tasks 0 to 5.
 \end{abstract}
 
 \section{Introduction}
 
-The objective is to classify microscopy images of mechanical test specimens into two approximately balanced classes representing the absence or presence of a fracture. The supplied data contain three experimental categories: ASB (3,741 images), NT (1,407 images), and UT (881 images). Every image is single-channel, has a spatial resolution of $128\times128$, and is normalized to the interval $[0,1]$. For the main NT experiments, the fixed train/validation/test split comprises 844, 281, and 282 images, respectively.
+The objective is to classify microscopy images of mechanical test specimens into two approximately balanced classes representing the absence or presence of a fracture. The supplied data contain two experimental categories:  NT (1407 images) and UT (881 images). Every image is single-channel, has a spatial resolution of $128\times128$, and is normalized to the interval $[0,1]$. For the main NT experiments, the fixed train/validation/test split comprises 844, 281, and 282 images, respectively.
 
-The project follows a staged analysis. Task 0 establishes a reproducible CNN baseline. Task 1 searches its principal optimization and architecture hyperparameters. Task 2 tests whether high clean-data accuracy persists under additive Gaussian noise. Task 3 investigates the learned representation using filters, activation maps, and Grad-CAM. Task 5 finally measures transfer between the NT and UT acquisition domains. Tasks 4 and 6 were not completed and are therefore not presented as results.
+The project follows a staged analysis. Task 0 establishes a reproducible CNN baseline. Task 1 searches its principal optimization and architecture hyperparameters. Task 2 tests how the model holds up under additive Gaussian noise. Task 3 investigates the learned representation using filters, activation maps, and Grad-CAM. Task 4 calculates precision, recall and F1 scores and shows where the model usually fails. Task 5 finally measures transfer between the NT and UT acquisition domains. 
 
 \clearpage
 \section{Task 0: Baseline CNN Classifier}
 
 \subsection{Approach}
 
-The baseline uses three convolutional layers with 32, 64, and 128 output channels. Each $3\times3$ convolution preserves spatial dimensions through padding and is followed by a ReLU nonlinearity. The first two blocks additionally contain $2\times2$ max pooling, reducing the representation from $128\times128$ to $64\times64$ and then $32\times32$. Adaptive global average pooling maps the final 128 feature maps to a 128-dimensional vector, and a linear layer produces two class logits. The architecture contains 92,930 trainable parameters.
+The baseline uses three convolutional layers with 32, 64, and 128 output channels. Each $3\times3$ convolution preserves spatial dimensions through padding and is followed by a ReLU nonlinearity. The first two blocks additionally contain $2\times2$ max pooling, reducing the representation from $128\times128$ to $64\times64$ and then $32\times32$. Adaptive global average pooling maps the final 128 feature maps to a 128-dimensional vector, and a linear layer produces two class logits. The architecture contains 92,930 trainable parameters for kernel size = 3 and 257,282 parameters for kernel size = 5.
 
 Training minimized cross-entropy using Adam, a learning rate of $10^{-3}$, a batch size of 32, and 150 epochs. Two otherwise identical runs were performed. The first used the original NT training data; the second applied random horizontal flips, rotations of up to $10^\circ$, and translations of up to $10\%$ in each direction. Validation data were used to monitor convergence, and final performance was measured on the held-out NT test split.
 
@@ -244,6 +244,64 @@ For the selected sample, most early feature maps are suppressed by ReLU, while a
 The Grad-CAM example places its strongest class-1 evidence along the elongated central structure rather than distributing it uniformly over the image. This supports the interpretation that the prediction uses spatially relevant fracture morphology. It does not, however, prove that every prediction relies on the same cue: the visualization covers one correctly classified example, Grad-CAM is low-resolution, and inactive channels do not necessarily imply that the corresponding learned features are globally unimportant. A larger gallery containing both classes and misclassified samples would strengthen the conclusion.
 
 \codelocation{tasks/task_3_interpretability/}
+
+\clearpage
+\section{Task 4: Confusion Matrix and Error Analysis}
+
+\subsection{Approach}
+
+The tuned NT model from Task 1 was evaluated on the held-out NT test split without additional noise or retraining. For every test image, the predicted class was compared with the ground-truth label and accumulated in a $2\times2$ confusion matrix. Class 0 denotes \emph{No Fracture}, while class 1 denotes \emph{Fracture}. In addition to the overall error counts, precision, recall, and F1-score were computed separately for both classes:
+\begin{equation}
+\mathrm{precision}_c=\frac{\mathrm{TP}_c}{\mathrm{TP}_c+\mathrm{FP}_c},
+\qquad
+\mathrm{recall}_c=\frac{\mathrm{TP}_c}{\mathrm{TP}_c+\mathrm{FN}_c},
+\qquad
+\mathrm{F1}_c=\frac{2\,\mathrm{precision}_c\,\mathrm{recall}_c}{\mathrm{precision}_c+\mathrm{recall}_c}.
+\end{equation}
+Misclassified test images were then collected and visualized to inspect whether the errors share visible image-level patterns.
+
+\subsection{Results}
+
+\begin{table}[H]
+\centering
+\caption{Class-wise metrics of the tuned model on the NT test set.}
+\label{tab:task4-metrics}
+\begin{tabular}{lrrrr}
+\toprule
+Class & Support & Precision & Recall & F1-score \\
+\midrule
+No Fracture & 142 & 95.21\% & 97.89\% & 96.53\% \\
+Fracture & 140 & 97.79\% & 95.00\% & 96.38\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.43\linewidth}
+\includegraphics[width=\linewidth]{../../tasks/task_4_confusion_matrix/figures/confusion_matrix.png}
+\caption{Confusion matrix on the NT test set.}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.54\linewidth}
+\includegraphics[width=\linewidth]{../../tasks/task_4_confusion_matrix/figures/misclassified_examples.png}
+\caption{Randomly selected misclassified test examples.}
+\end{subfigure}
+\caption{Task 4 error analysis outputs. The model makes 10 mistakes on 282 NT test images: 3 false fracture predictions and 7 missed fractures.}
+\label{fig:error-analysis}
+\end{figure}
+
+The confusion matrix contains 139 correctly classified No-Fracture images, 133 correctly classified Fracture images, 3 false positives, and 7 false negatives. This corresponds to the same clean-test accuracy reported in Task 2, namely $272/282=96.45\%$.
+
+\subsection{Discussion}
+
+The harder class is Fracture if recall is used as the criterion. The model misses 7 of 140 fracture images, giving a Fracture recall of 95.00\%, whereas it misses only 3 of 142 No-Fracture images in the opposite direction. This means the model is slightly more likely to classify a subtle fracture as intact material than to hallucinate a fracture in an intact image. Precision shows the reverse pattern: predicted Fracture labels are very reliable because only 3 No-Fracture samples are assigned to that class.
+
+The visualized failure cases suggest that many mistakes occur close to the visual boundary between the two labels. Some false negatives contain weak, fragmented, or low-contrast crack-like structures that blend into the background texture. Conversely, some false positives contain dark inclusions, strong local texture, or elongated intensity changes that can resemble fracture evidence. The common factor is therefore ambiguity in the local contrast pattern: the images do not fail because of a completely different global appearance, but because the discriminative structure is small, partially obscured, or visually similar to ordinary material texture.
+
+Performance on these failure cases could be improved in several ways. First, targeted augmentation could emphasize the ambiguous regimes, for example through moderate contrast changes, blur, and noise levels that preserve the fracture signal. Second, hard-example mining or class-balanced reweighting could force training to pay more attention to missed fractures, which are the more safety-critical error type in this binary setting. Third, a larger labelled set of borderline cases would help the model learn the distinction between true cracks and crack-like texture artifacts. Finally, combining the classification loss with a localization-oriented signal, if fracture masks or weak location labels were available, could encourage the network to base its decision on the actual defect region rather than on correlated background texture.
+
+\codelocation{tasks/task_4_confusion_matrix/}
 
 \clearpage
 \section{Task 5: Cross-Dataset Generalization}
