@@ -78,7 +78,7 @@ def show_sample_images_comparison(
     num_samples=5,
     category1="NT",
     category2="UT",
-    seed=42,
+    seed=43,
 ):
     """Plot randomly selected test images from two dataset categories."""
     dataset1 = load_dataset(category1, "test")
@@ -120,7 +120,7 @@ def show_sample_images_comparison(
 
     results_dir = Path(__file__).resolve().parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    output_path = results_dir / f"sample_images_comparison_{category1}_{category2}.png"
+    output_path = results_dir / f"sample_images_comparison_{category1}_{category2}_seed{seed}.png"
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.show()
 
@@ -215,4 +215,4 @@ if __name__ == "__main__":
         
     #HERE PLOT THE MATRIX
     create_generalization_matrix(results)
-   # show_sample_images_comparison()
+    show_sample_images_comparison()

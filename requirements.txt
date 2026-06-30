@@ -1,13 +1,16 @@
 # Core dependencies
 
-torchvision>=0.15.0
+#torchvision>=0.15.0
 numpy>=1.24.0
 scipy>=1.10.0
 scikit-learn>=1.2.0
 matplotlib>=3.7.0
 
 # Install PyTorch with CUDA support (if available)
---index-url https://download.pytorch.org/whl/cu118
+#Type in powershell:
+#pip uninstall torch torchvision torchaudio -y
+#pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
 torch
 torchvision
 torchaudio

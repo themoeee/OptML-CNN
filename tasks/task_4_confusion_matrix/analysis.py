@@ -17,6 +17,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
+from sklearn.metrics import confusion_matrix, classification_report
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -72,24 +73,6 @@ def calculate_f1_score(precision, recall):
     f1_per_class = 2 * (precision * recall) / (precision + recall)
     return f1_per_class 
 
-def plot_f1_matrix(f1_scores, class_names):
-    """Plot F1-score matrix."""
-    plt.figure(figsize=(8, 6))
-    plt.imshow(f1_scores.reshape(1, -1), interpolation='nearest', cmap=plt.cm.Blues)
-    plt.title("F1-score Matrix")
-    plt.colorbar()
-    tick_marks = np.arange(len(class_names))
-    plt.xticks(tick_marks, class_names, rotation=45)
-    plt.yticks([])  # No y-ticks since it's a single row
-    for i, j in np.ndindex(f1_scores.reshape(1, -1).shape):
-        plt.text(j, i, format(f1_scores[j], '.2f'),
-                 horizontalalignment="center",
-                 color="white" if f1_scores[j] > 0.5 else "black")
-    plt.title('F1-score Matrix')
-    plt.xlabel('Classes')
-    plt.ylabel('Classes')
-    plt.show()
-
 def show_misclasified_examples(images, true_labels, pred_labels, num_examples=5):
     """Visualize misclassified examples."""
     true_labels = np.asarray(true_labels)
@@ -134,12 +117,11 @@ if __name__ == "__main__":
             all_true_labels.extend(labels.cpu().numpy())
             all_pred_labels.extend(preds.cpu().numpy())
 
-    # Compute confusion matrix
-    from sklearn.metrics import confusion_matrix, classification_report
+   
     cm = confusion_matrix(all_true_labels, all_pred_labels)
     print("Confusion Matrix:\n", cm)
 
-    # Calculate precision, recall, F1-score per class
+    # Calculate precision, recall, F1-score per class - learned about this after I built the indivual functions above, but this is a more efficient way to do it
     report = classification_report(all_true_labels, all_pred_labels, target_names=["No Fracture", "Fracture"])
     print("Classification Report:\n", report)
 
@@ -152,11 +134,19 @@ if __name__ == "__main__":
     plt.xticks(tick_marks, ["No Fracture", "Fracture"], rotation=45)
     plt.yticks(tick_marks, ["No Fracture", "Fracture"])
     
+    #Add percentages to each category in the confusion matrix
     thresh = cm.max() / 2.
+    total = cm.sum()
     for i, j in np.ndindex(cm.shape):
-        plt.text(j, i, format(cm[i, j], 'd'),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
+        count = cm[i, j]
+        percent = 100 * count / total
+        plt.text(
+            j, i,
+            f"{count}\n({percent:.1f}%)",
+            horizontalalignment="center",
+            verticalalignment="center",
+            color="white" if count > thresh else "black"
+        )
     
     plt.title('Confusion Matrix for {category} Category'.format(category=category))
     plt.ylabel('True label')

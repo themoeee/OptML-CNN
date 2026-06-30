@@ -29,4 +29,4 @@ Grad-CAM (Gradient-weighted Class Activation Mapping):
 ## Files
 - `visualize_filters.py` - Filter visualization
 - `gradcam.py` - Grad-CAM implementation
-- `figures/` - Visualization gallery
+- `results/` - Visualization gallery
