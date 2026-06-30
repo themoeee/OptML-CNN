@@ -28,8 +28,7 @@ fractures. The repository is organized by project task:
 
 Most final experiments use the `NT` dataset as the main training and evaluation
 dataset. The cross-dataset experiment focuses on transfer between `NT` and `UT`;
-`ASB` data is present in the repository, but the final cross-evaluation script
-comments it out.
+`ASB` data is present in the repository, but faulty and therefore not used.
 
 ## Data
 
