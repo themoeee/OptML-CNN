@@ -179,4 +179,43 @@ def train_model(batch_size, data_augmentation, num_epochs, learning_rate, kernel
 
     return best_val_loss, model
 
+def load_final_model(model_path: str):
+    checkpoint = torch.load(model_path)
+    model = SimpleCNN(kernel_size=checkpoint["best_params"]["kernel_size"])
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.eval()
+    return model, checkpoint["best_params"], checkpoint["num_epochs"], checkpoint["best_val_loss"]
 
+def get_test_metrics(model, test_loader, criterion, device):
+    model.eval()
+    test_loss = 0.0
+    test_correct = 0
+    
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            
+            test_loss += loss.item()
+            test_correct += (outputs.argmax(1) == labels).sum().item()
+
+    test_loss /= len(test_loader)
+    test_acc = 100 * test_correct / len(test_loader.dataset)
+
+    return test_loss, test_acc
+
+if __name__ == "__main__":
+    #Load best model and evaluate on test set
+    model_path = "results/final_best_model_task1.pth"
+    model, best_params, num_epochs, best_val_loss = load_final_model(model_path)
+
+    test_dataset = load_dataset("NT", "test")
+    test_loader = DataLoader(test_dataset, batch_size=best_params["batch_size"], shuffle=False)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    test_loss, test_acc = get_test_metrics(model, test_loader, criterion, device)
+    print(f"Test Loss: {test_loss:.4f}, Acc: {test_acc:.2f}%")
+        
