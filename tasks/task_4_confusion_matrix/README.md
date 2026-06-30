@@ -23,10 +23,11 @@ Misclassified images are often ambigious for human observers. Common trends I no
 
 ## Suggestions for Improvement
 *How could you reduce errors?*
-Add an “unsure” category for low-confidence predictions.
-Use a more complex CNN architecture to capture harder visual patterns.
-Collect more labelled data, especially ambiguous borderline cases.
-Use more test data for a more reliable evaluation.
+Add an “unsure” category for low-confidence predictions
+Use a more complex CNN architecture to capture harder visual patterns
+Collect more labelled data, especially ambiguous borderline cases
+Use more test data for a more reliable evaluation
+Training with blurred samples or other augmentations
 
 ## Files
 - `analysis.py` - Analysis script

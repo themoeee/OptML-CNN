@@ -85,7 +85,7 @@ def show_misclasified_examples(images, true_labels, pred_labels, num_examples=5)
     num_examples = min(num_examples, len(misclassified_indices))
     selected_indices = np.random.choice(misclassified_indices, num_examples, replace=False)
 
-    plt.figure(figsize=(15, 5))
+    plt.figure(figsize=(10, 4))
     for i, idx in enumerate(selected_indices):
         plt.subplot(1, num_examples, i + 1)
         plt.imshow(images[idx].squeeze(), cmap='gray')
